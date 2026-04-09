@@ -13,8 +13,13 @@ Usage:
 
 import argparse
 import logging
+import os
 import warnings
 from pathlib import Path
+
+# Prevent segfault from OMP/MKL threading conflict between PyTorch and scikit-learn on macOS
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 
 import cv2
 import easyocr
