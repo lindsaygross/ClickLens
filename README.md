@@ -1,5 +1,8 @@
 # ClickLens — YouTube Thumbnail Click-Through Predictor
 
+> **Live app:** https://clicklens-6x9m.onrender.com
+> **Backend API:** https://clicklens-j2r2.onrender.com/health
+
 ClickLens is a computer-vision tool that predicts which YouTube thumbnail will get the most clicks. Upload 2–4 candidate thumbnails and get ranked predictions with Grad-CAM explainability heatmaps.
 
 ## Team
