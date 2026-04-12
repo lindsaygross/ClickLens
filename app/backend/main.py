@@ -121,6 +121,29 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# Mock predictions (used when model is not loaded)
+# ---------------------------------------------------------------------------
+import random
+
+def _mock_predict(filename: str) -> dict:
+    """Return randomised but realistic-looking predictions for demo/dev use."""
+    rng = random.Random(filename)  # seed by filename so results are stable per file
+    raw = [rng.uniform(0.05, 0.9) for _ in range(3)]
+    total = sum(raw)
+    probs = [round(v / total, 4) for v in raw]
+    # Adjust so they sum to exactly 1.0 after rounding
+    probs[2] = round(1.0 - probs[0] - probs[1], 4)
+    scores = {CLASS_LABELS[i]: probs[i] for i in range(3)}
+    pred_idx = int(max(range(3), key=lambda i: probs[i]))
+    return {
+        "predicted_class": CLASS_LABELS[pred_idx],
+        "confidence": probs[pred_idx],
+        "scores": scores,
+        "mock": True,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _ensure_model():
@@ -240,22 +263,26 @@ async def health():
 
 @app.post("/predict")
 async def predict(files: List[UploadFile] = File(...)):
-    _ensure_model()
-
     if len(files) < 1 or len(files) > 4:
         raise HTTPException(status_code=400, detail="Upload between 1 and 4 images")
 
     results = []
     for upload in files:
         raw = await upload.read()
-        try:
-            img = _load_image(raw)
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Could not open image: {upload.filename}",
-            )
-        info = _predict(img)
+
+        if model is None:
+            # Demo mode: return mock predictions so the UI works without a trained model
+            info = _mock_predict(upload.filename or f"file_{len(results)}")
+        else:
+            try:
+                img = _load_image(raw)
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not open image: {upload.filename}",
+                )
+            info = _predict(img)
+
         info["filename"] = upload.filename
         results.append(info)
 
@@ -264,12 +291,21 @@ async def predict(files: List[UploadFile] = File(...)):
     for rank, r in enumerate(results, start=1):
         r["rank"] = rank
 
-    return {"results": results}
+    is_mock = model is None
+    return {"results": results, "mock": is_mock}
 
 
 @app.post("/gradcam")
 async def gradcam(file: UploadFile = File(...)):
-    _ensure_model()
+    if model is None:
+        # Demo mode: return a placeholder response so UI doesn't break
+        return {
+            "heatmap": None,
+            "predicted_class": "N/A",
+            "confidence": 0.0,
+            "scores": {"Low": 0.0, "Medium": 0.0, "High": 0.0},
+            "mock": True,
+        }
 
     raw = await file.read()
     try:

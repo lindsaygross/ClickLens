@@ -84,7 +84,7 @@ export default function UploadZone({ onAnalyze, onLoading, onError }) {
     }
     onLoading();
     try {
-      const results = await predictThumbnails(files);
+      const { results, mock } = await predictThumbnails(files);
       // Attach original file references to results by matching index
       const enriched = results.map((r, i) => ({
         ...r,
@@ -98,13 +98,9 @@ export default function UploadZone({ onAnalyze, onLoading, onError }) {
         if (classCompare !== 0) return classCompare;
         return (b.confidence || 0) - (a.confidence || 0);
       });
-      onAnalyze(files, enriched);
+      onAnalyze(files, enriched, mock);
     } catch (err) {
-      const message =
-        err.response?.data?.detail ||
-        err.message ||
-        'Something went wrong. Is the backend running on localhost:8000?';
-      onError(message);
+      onError(err.message);
     }
   }
 

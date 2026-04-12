@@ -8,10 +8,12 @@ function App() {
   const [files, setFiles] = useState([]);
   const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
+  const [isMock, setIsMock] = useState(false);
 
-  function handleAnalyze(selectedFiles, apiResults) {
+  function handleAnalyze(selectedFiles, apiResults, mock = false) {
     setFiles(selectedFiles);
     setResults(apiResults);
+    setIsMock(mock);
     setView('results');
   }
 
@@ -30,6 +32,7 @@ function App() {
     setFiles([]);
     setResults([]);
     setError(null);
+    setIsMock(false);
   }
 
   return (
@@ -138,6 +141,16 @@ function App() {
 
         {view === 'results' && (
           <div className="results-state fade-in">
+            {isMock && (
+              <div className="demo-banner">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                  <circle cx="8" cy="8" r="7" stroke="#f5a623" strokeWidth="1.5" />
+                  <line x1="8" y1="4.5" x2="8" y2="9" stroke="#f5a623" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="8" cy="11.5" r="0.75" fill="#f5a623" />
+                </svg>
+                <span>Demo Mode — AI model not loaded yet. Results are randomised placeholders.</span>
+              </div>
+            )}
             <Results results={results} files={files} />
             <InsightsPanel results={results} />
             <div className="results-footer">

@@ -125,7 +125,7 @@
 /* --- Error Banner --- */
 .error-banner {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 12px 18px;
   border-radius: 10px;
@@ -133,9 +133,26 @@
   border: 1px solid rgba(255, 82, 82, 0.25);
   color: #ff8a80;
   font-size: 14px;
+  line-height: 1.5;
   margin-bottom: 20px;
   width: 100%;
-  max-width: 520px;
+  max-width: 580px;
+  word-break: break-word;
+}
+
+/* --- Demo Mode Banner --- */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  color: #f5a623;
+  font-size: 13px;
+  margin-bottom: 20px;
+  width: 100%;
 }
 
 /* --- Upload Zone --- */
