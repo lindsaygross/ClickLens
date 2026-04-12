@@ -6,6 +6,7 @@ Serves EfficientNet-B0 thumbnail CTR predictions and Grad-CAM explanations.
 import base64
 import io
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
@@ -111,9 +112,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

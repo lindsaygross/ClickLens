@@ -21,21 +21,7 @@ export default function InsightsPanel({ results }) {
         Key differences between the top-ranked and lowest-ranked thumbnails
       </p>
 
-      <div className="insights-grid">
-        {insights.map((insight, i) => (
-          <div key={i} className="insight-item">
-            <div className="insight-icon" style={{ background: insight.iconBg }}>
-              {insight.icon}
-            </div>
-            <div className="insight-content">
-              <span className="insight-title">{insight.title}</span>
-              <span className="insight-desc">{insight.description}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Heatmap explanation */}
+      {/* Heatmap explanation — shown first so users know how to use the toggle */}
       <div className="heatmap-explainer">
         <div className="heatmap-explainer-title">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#ffc107" strokeWidth="1.5" style={{ flexShrink: 0 }}>
@@ -65,6 +51,20 @@ export default function InsightsPanel({ results }) {
         <p className="heatmap-explainer-tip">
           If red regions land on a face or bold text, the model is responding to strong engagement signals — which is a good sign for CTR.
         </p>
+      </div>
+
+      <div className="insights-grid">
+        {insights.map((insight, i) => (
+          <div key={i} className="insight-item">
+            <div className="insight-icon" style={{ background: insight.iconBg }}>
+              {insight.icon}
+            </div>
+            <div className="insight-content">
+              <span className="insight-title">{insight.title}</span>
+              <span className="insight-desc">{insight.description}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="insights-summary">

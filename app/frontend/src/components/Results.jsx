@@ -135,6 +135,28 @@ export default function Results({ results, files }) {
                   </div>
                 </div>
 
+                {/* Score breakdown: Low / Medium / High */}
+                {r.scores && (
+                  <div className="score-breakdown">
+                    {['High', 'Medium', 'Low'].map(label => {
+                      const pct = Math.round((r.scores[label] || 0) * 100);
+                      const color = CLASS_CONFIG[label]?.color || '#fff';
+                      return (
+                        <div key={label} className="score-row">
+                          <span className="score-label" style={{ color }}>{label}</span>
+                          <div className="score-bar-track">
+                            <div
+                              className="score-bar-fill"
+                              style={{ width: `${pct}%`, background: color }}
+                            />
+                          </div>
+                          <span className="score-pct">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <button
                   className={`btn-heatmap ${showingHeatmap ? 'btn-heatmap--active' : ''}`}
                   onClick={() => toggleHeatmap(i)}
