@@ -85,12 +85,15 @@ export default function UploadZone({ onAnalyze, onLoading, onError }) {
     onLoading();
     try {
       const { results, mock } = await predictThumbnails(files);
-      // Attach original file references to results by matching index
-      const enriched = results.map((r, i) => ({
-        ...r,
-        file: files[i],
-        previewUrl: URL.createObjectURL(files[i]),
-      }));
+      // Attach original file references by matching filename (results may be reordered by backend)
+      const enriched = results.map(r => {
+        const matchingFile = files.find(f => f.name === r.filename) ?? files[0];
+        return {
+          ...r,
+          file: matchingFile,
+          previewUrl: URL.createObjectURL(matchingFile),
+        };
+      });
       // Sort by confidence descending (High > Medium > Low)
       const classOrder = { High: 3, Medium: 2, Low: 1 };
       enriched.sort((a, b) => {
