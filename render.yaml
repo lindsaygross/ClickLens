@@ -18,9 +18,9 @@ services:
     plan: free
 
     envVars:
-      # Set this to your deployed Vercel URL after frontend is live.
+      # Frontend is deployed at https://clicklens-6x9m.onrender.com
       - key: CORS_ORIGINS
-        value: https://clicklens.vercel.app
+        value: https://clicklens-6x9m.onrender.com
 
       # Set this to a direct-download URL for efficientnet_best.pth
       # (e.g. HuggingFace Hub raw URL or Google Drive direct link).

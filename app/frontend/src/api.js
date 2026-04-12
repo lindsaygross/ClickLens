@@ -4,11 +4,10 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 function parseError(err) {
   if (!err.response) {
-    // No response at all = backend not reachable
-    return 'Cannot reach the backend. Make sure it is running: cd app/backend && uvicorn main:app --reload --port 8000';
+    return 'Cannot reach the backend. Please try again in a moment — the server may be waking up.';
   }
   if (err.response.status === 503) {
-    return 'Backend is running but the AI model is not loaded yet. Using demo mode is unavailable — check server logs.';
+    return 'The server is starting up. Please wait a few seconds and try again.';
   }
   return err.response?.data?.detail || err.message || 'Something went wrong.';
 }
