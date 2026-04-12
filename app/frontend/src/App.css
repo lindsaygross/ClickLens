@@ -811,6 +811,86 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+/* --- Heatmap Legend (per card) --- */
+.heatmap-legend {
+  padding: 10px 0 4px;
+}
+.heatmap-legend-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #4575b4, #91bfdb, #fee090, #fc8d59, #d73027);
+  margin-bottom: 4px;
+}
+.heatmap-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.heatmap-demo-note {
+  font-size: 10px;
+  color: rgba(245, 166, 35, 0.7);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.heatmap-error {
+  font-size: 11px;
+  color: #ff8a80;
+  padding: 4px 0;
+}
+
+/* --- Heatmap Explainer (InsightsPanel) --- */
+.heatmap-explainer {
+  padding: 18px;
+  border-radius: 12px;
+  background: rgba(255, 193, 7, 0.05);
+  border: 1px solid rgba(255, 193, 7, 0.15);
+  margin-bottom: 24px;
+}
+.heatmap-explainer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffc107;
+  margin-bottom: 8px;
+}
+.heatmap-explainer-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.heatmap-color-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.heatmap-color-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.heatmap-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.heatmap-explainer-tip {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.5;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+  margin-bottom: 0;
+}
+
 .summary-vs {
   font-size: 14px;
   font-weight: 700;

@@ -35,6 +35,38 @@ export default function InsightsPanel({ results }) {
         ))}
       </div>
 
+      {/* Heatmap explanation */}
+      <div className="heatmap-explainer">
+        <div className="heatmap-explainer-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#ffc107" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+            <rect x="1" y="1" width="14" height="14" rx="2" />
+            <circle cx="8" cy="8" r="3" />
+            <circle cx="8" cy="8" r="1" fill="#ffc107" />
+          </svg>
+          How to read the Grad-CAM heatmap
+        </div>
+        <p className="heatmap-explainer-desc">
+          Click <strong>Show Heatmap</strong> on any thumbnail to see a colour overlay. The colours show where the AI focused when making its prediction:
+        </p>
+        <div className="heatmap-color-guide">
+          <div className="heatmap-color-item">
+            <span className="heatmap-swatch" style={{ background: '#d73027' }} />
+            <span><strong>Red / warm</strong> — areas the model paid the most attention to</span>
+          </div>
+          <div className="heatmap-color-item">
+            <span className="heatmap-swatch" style={{ background: '#fee090' }} />
+            <span><strong>Yellow / orange</strong> — moderate attention</span>
+          </div>
+          <div className="heatmap-color-item">
+            <span className="heatmap-swatch" style={{ background: '#4575b4' }} />
+            <span><strong>Blue / cool</strong> — areas the model largely ignored</span>
+          </div>
+        </div>
+        <p className="heatmap-explainer-tip">
+          If red regions land on a face or bold text, the model is responding to strong engagement signals — which is a good sign for CTR.
+        </p>
+      </div>
+
       <div className="insights-summary">
         <div className="summary-card summary-card--winner">
           <span className="summary-label">Best Performer</span>

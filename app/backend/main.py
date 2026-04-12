@@ -143,6 +143,31 @@ def _mock_predict(filename: str) -> dict:
     }
 
 
+def _mock_gradcam(img: Image.Image) -> str:
+    """
+    Generate a plausible-looking Grad-CAM overlay for demo mode.
+    Uses a smooth random heatmap blended over the original image.
+    Returns base64-encoded JPEG string.
+    """
+    img_np = np.array(img.convert("RGB"))
+    h, w = img_np.shape[:2]
+
+    # Build a smooth random attention map (low-res noise + upscale)
+    rng_np = np.random.RandomState(42)
+    low_res_h, low_res_w = max(h // 8, 4), max(w // 8, 4)
+    noise = rng_np.rand(low_res_h, low_res_w).astype(np.float32)
+    cam = cv2.resize(noise, (w, h), interpolation=cv2.INTER_CUBIC)
+    cam = np.clip(cam, 0.0, 1.0)
+
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
+    heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+
+    overlay = np.uint8(0.6 * img_np + 0.4 * heatmap_rgb)
+    overlay_bgr = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
+    _, buf = cv2.imencode(".jpg", overlay_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    return base64.b64encode(buf.tobytes()).decode("utf-8")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -297,21 +322,22 @@ async def predict(files: List[UploadFile] = File(...)):
 
 @app.post("/gradcam")
 async def gradcam(file: UploadFile = File(...)):
-    if model is None:
-        # Demo mode: return a placeholder response so UI doesn't break
-        return {
-            "heatmap": None,
-            "predicted_class": "N/A",
-            "confidence": 0.0,
-            "scores": {"Low": 0.0, "Medium": 0.0, "High": 0.0},
-            "mock": True,
-        }
-
     raw = await file.read()
     try:
         img = _load_image(raw)
     except Exception:
         raise HTTPException(status_code=400, detail="Could not open uploaded image")
+
+    if model is None:
+        # Demo mode: return a smooth random heatmap so the UI shows something useful
+        b64 = _mock_gradcam(img)
+        return {
+            "heatmap": b64,
+            "predicted_class": "N/A",
+            "confidence": 0.0,
+            "scores": {"Low": 0.0, "Medium": 0.0, "High": 0.0},
+            "mock": True,
+        }
 
     result = _gradcam(img)
     return result

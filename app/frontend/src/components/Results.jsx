@@ -14,6 +14,8 @@ export default function Results({ results, files }) {
   const [heatmaps, setHeatmaps] = useState({});
   const [heatmapVisible, setHeatmapVisible] = useState({});
   const [heatmapLoading, setHeatmapLoading] = useState({});
+  const [heatmapError, setHeatmapError] = useState({});
+  const [heatmapMock, setHeatmapMock] = useState({});
 
   async function toggleHeatmap(index) {
     const isVisible = heatmapVisible[index];
@@ -31,14 +33,16 @@ export default function Results({ results, files }) {
 
     // Fetch the heatmap
     setHeatmapLoading(prev => ({ ...prev, [index]: true }));
+    setHeatmapError(prev => ({ ...prev, [index]: null }));
     try {
       const result = results[index];
       const file = result.file;
       const data = await getGradcam(file);
       setHeatmaps(prev => ({ ...prev, [index]: data.heatmap }));
+      setHeatmapMock(prev => ({ ...prev, [index]: data.mock || false }));
       setHeatmapVisible(prev => ({ ...prev, [index]: true }));
     } catch (err) {
-      console.error('Failed to load heatmap:', err);
+      setHeatmapError(prev => ({ ...prev, [index]: 'Could not load heatmap.' }));
     } finally {
       setHeatmapLoading(prev => ({ ...prev, [index]: false }));
     }
@@ -69,6 +73,8 @@ export default function Results({ results, files }) {
           const isWinner = i === 0;
           const showingHeatmap = heatmapVisible[i];
           const loadingHeatmap = heatmapLoading[i];
+          const heatmapErr = heatmapError[i];
+          const isMockHeatmap = heatmapMock[i];
 
           return (
             <div
@@ -159,6 +165,25 @@ export default function Results({ results, files }) {
                   )}
                 </button>
               </div>
+
+              {/* Heatmap legend */}
+              {showingHeatmap && heatmaps[i] && (
+                <div className="heatmap-legend">
+                  <div className="heatmap-legend-bar" />
+                  <div className="heatmap-legend-labels">
+                    <span>Low attention</span>
+                    <span>High attention</span>
+                  </div>
+                  {isMockHeatmap && (
+                    <p className="heatmap-demo-note">Demo heatmap — random overlay. Real heatmap available after model training.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Heatmap error */}
+              {heatmapErr && (
+                <p className="heatmap-error">{heatmapErr}</p>
+              )}
 
               {/* Rank label */}
               <div className="rank-label" style={{ color: RANK_COLORS[i] || RANK_COLORS[3] }}>
