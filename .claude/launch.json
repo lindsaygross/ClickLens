@@ -1,0 +1,18 @@
+{
+  "servers": [
+    {
+      "name": "React Frontend",
+      "command": "npm run dev",
+      "cwd": "app/frontend",
+      "port": 5173,
+      "url": "http://localhost:5173"
+    },
+    {
+      "name": "FastAPI Backend",
+      "command": "uvicorn main:app --reload --port 8000",
+      "cwd": "app/backend",
+      "port": 8000,
+      "url": "http://localhost:8000"
+    }
+  ]
+}

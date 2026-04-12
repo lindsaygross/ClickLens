@@ -1,0 +1,29 @@
+# Data collection
+google-api-python-client>=2.100.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Image processing & feature engineering
+opencv-python>=4.8.0
+Pillow>=10.0.0
+scikit-learn>=1.3.0
+numpy>=1.24.0
+pandas>=1.5.0
+easyocr>=1.7.0
+
+# Modeling
+xgboost>=2.0.0
+torch>=2.1.0
+torchvision>=0.16.0
+timm>=0.9.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Backend
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Utilities
+tqdm>=4.66.0
+scipy>=1.11.0
