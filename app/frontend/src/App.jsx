@@ -2,6 +2,7 @@ import { useState } from 'react';
 import UploadZone from './components/UploadZone';
 import Results from './components/Results';
 import InsightsPanel from './components/InsightsPanel';
+import Recommendations from './components/Recommendations';
 
 function App() {
   const [view, setView] = useState('upload');
@@ -9,17 +10,19 @@ function App() {
   const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
   const [isMock, setIsMock] = useState(false);
+  const [niche, setNiche] = useState('Gaming');
 
-  function handleAnalyze(selectedFiles, apiResults, mock = false) {
+  function handleAnalyze(selectedFiles, apiResults, mock = false, selectedNiche = 'Gaming') {
     setFiles(selectedFiles);
     setResults(apiResults);
     setIsMock(mock);
+    setNiche(selectedNiche);
     setView('results');
   }
   function handleLoading() { setError(null); setView('loading'); }
   function handleError(msg) { setError(msg); setView('upload'); }
   function handleReset() {
-    setView('upload'); setFiles([]); setResults([]); setError(null); setIsMock(false);
+    setView('upload'); setFiles([]); setResults([]); setError(null); setIsMock(false); setNiche('Gaming');
   }
 
   return (
@@ -97,6 +100,13 @@ function App() {
                 </svg>
                 Ranked Results
               </div>
+              <div className="feature-pill">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Similar High-CTR
+              </div>
             </div>
           </div>
         )}
@@ -124,6 +134,7 @@ function App() {
             )}
             <Results results={results} files={files} />
             <InsightsPanel results={results} />
+            <Recommendations bestFile={results[0]?.file} niche={niche} />
             <div className="results-footer">
               <button className="btn-primary" onClick={handleReset}>
                 + Compare More

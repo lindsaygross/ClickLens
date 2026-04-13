@@ -7,17 +7,19 @@ import base64
 import io
 import logging
 import os
+import pickle
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 
 import cv2
 import numpy as np
+import pandas as pd
 import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from torchvision import transforms
@@ -32,7 +34,9 @@ logger = logging.getLogger("clicklens")
 # Constants
 # ---------------------------------------------------------------------------
 CLASS_LABELS = {0: "Low", 1: "Medium", 2: "High"}
-MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "efficientnet_best.pth"
+MODEL_PATH        = Path(__file__).resolve().parent.parent.parent / "models" / "efficientnet_best.pth"
+KNN_INDEX_PATH    = Path(__file__).resolve().parent.parent.parent / "models" / "knn_index.pkl"
+EMBEDDINGS_MAP    = Path(__file__).resolve().parent.parent.parent / "data" / "processed" / "embeddings_mapping.csv"
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -49,6 +53,8 @@ PREPROCESS = transforms.Compose([
 # ---------------------------------------------------------------------------
 device: torch.device = torch.device("cpu")
 model: nn.Module | None = None
+knn_index = None
+embeddings_df: pd.DataFrame | None = None
 
 
 def _select_device() -> torch.device:
@@ -110,6 +116,20 @@ async def lifespan(app: FastAPI):
         logger.warning("Model file not found at %s – starting in demo mode", MODEL_PATH)
         model = None
 
+    # Load kNN similarity index and embeddings mapping (built by Lindsay's pipeline)
+    global knn_index, embeddings_df
+    if KNN_INDEX_PATH.exists() and EMBEDDINGS_MAP.exists():
+        try:
+            with open(KNN_INDEX_PATH, "rb") as f:
+                knn_index = pickle.load(f)
+            embeddings_df = pd.read_csv(EMBEDDINGS_MAP)
+            logger.info("kNN index loaded (%d embeddings)", len(embeddings_df))
+        except Exception as exc:
+            logger.error("Failed to load kNN index: %s", exc)
+            knn_index, embeddings_df = None, None
+    else:
+        logger.warning("kNN index not found – recommendations will run in demo mode")
+
     yield  # application is running
 
 
@@ -156,6 +176,16 @@ def _mock_predict(filename: str) -> dict:
         "scores": scores,
         "mock": True,
     }
+
+
+def _mock_recommend(niche: str) -> list:
+    """Return plausible-looking mock recommendations for demo mode."""
+    valid_niches = ["Gaming", "Travel", "Fitness"]
+    n = niche if niche in valid_niches else "Gaming"
+    return [
+        {"niche": n, "CTR_label": "High", "similarity": round(0.95 - i * 0.06, 2), "video_id": f"demo_{i+1}"}
+        for i in range(5)
+    ]
 
 
 def _mock_gradcam(img: Image.Image) -> str:
@@ -210,6 +240,15 @@ def _predict(img: Image.Image) -> dict:
         "confidence": round(float(probs[pred_idx]), 4),
         "scores": scores,
     }
+
+
+def _get_embedding(img: Image.Image) -> np.ndarray:
+    """Extract the 1280-d EfficientNet backbone embedding for similarity search."""
+    tensor = PREPROCESS(img).unsqueeze(0).to(device)
+    with torch.no_grad():
+        features = model.forward_features(tensor)   # (1, C, H, W)
+        pooled   = model.global_pool(features)       # (1, 1280)
+    return pooled.cpu().numpy().flatten()
 
 
 # ---------------------------------------------------------------------------
@@ -356,3 +395,50 @@ async def gradcam(file: UploadFile = File(...)):
 
     result = _gradcam(img)
     return result
+
+
+@app.post("/recommend")
+async def recommend(
+    file: UploadFile = File(...),
+    niche: str = Query(default=""),
+):
+    """
+    Given a thumbnail and an optional niche, return the top-5 most similar
+    High-CTR thumbnails from the training set (content-based recommendation).
+    """
+    raw = await file.read()
+    try:
+        img = _load_image(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not open uploaded image")
+
+    # Demo mode: no model or no index
+    if model is None or knn_index is None or embeddings_df is None:
+        return {"recommendations": _mock_recommend(niche), "mock": True}
+
+    embedding = _get_embedding(img)
+    n_neighbors = min(30, len(embeddings_df))
+    distances, indices = knn_index.kneighbors([embedding], n_neighbors=n_neighbors)
+
+    neighbours = embeddings_df.iloc[indices[0]].copy()
+    neighbours = neighbours.assign(similarity=(1 - distances[0]).round(4))
+
+    # Filter by niche when provided
+    if niche and niche.lower() != "other":
+        by_niche = neighbours[neighbours["niche"].str.lower() == niche.lower()]
+        neighbours = by_niche if len(by_niche) >= 2 else neighbours
+
+    # Prefer High CTR; fall back to all if fewer than 2 High results
+    high_ctr = neighbours[neighbours["CTR_label"] == "High"]
+    top = high_ctr.head(5) if len(high_ctr) >= 2 else neighbours.head(5)
+
+    recommendations = [
+        {
+            "niche":      row["niche"],
+            "CTR_label":  row["CTR_label"],
+            "similarity": float(row["similarity"]),
+            "video_id":   str(row.get("video_id", "")),
+        }
+        for _, row in top.iterrows()
+    ]
+    return {"recommendations": recommendations, "mock": False}
