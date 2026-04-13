@@ -381,6 +381,12 @@ def build_features(input_csv: Path, output_csv: Path) -> None:
     )
 
     leading_cols = ["niche", "thumbnail_path", "views", "subscribers", "CTR_label"]
+    missing_leading_cols = [c for c in leading_cols if c not in features_df.columns]
+    if missing_leading_cols:
+        raise ValueError(
+            "Missing required columns after renaming/labeling: "
+            f"{', '.join(missing_leading_cols)}"
+        )
     remaining_cols = [c for c in features_df.columns if c not in leading_cols]
     features_df = features_df[leading_cols + remaining_cols]
 

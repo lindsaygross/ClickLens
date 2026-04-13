@@ -103,6 +103,10 @@ def main() -> None:
     }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # Security note: pickle artifacts must only be loaded from trusted,
+    # access-controlled locations.  Loading a tampered file can execute
+    # arbitrary code.  Ensure models/knn_index.pkl is never served from or
+    # replaced via a publicly writable path.
     with open(args.output, "wb") as f:
         pickle.dump(artifact, f)
     print(f"Saved index artifact to {args.output}")

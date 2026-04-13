@@ -54,9 +54,10 @@ def precision_recall_at_k(
     k: int,
 ) -> tuple[float, float]:
     """Precision@K and Recall@K for a single query."""
-    top_k = retrieved_labels[:k]
+    effective_k = min(k, len(retrieved_labels))
+    top_k = retrieved_labels[:effective_k]
     hits = int(np.sum(top_k == query_label))
-    precision = hits / k if k > 0 else 0.0
+    precision = hits / effective_k if effective_k > 0 else 0.0
     recall = hits / total_relevant if total_relevant > 0 else 0.0
     return precision, recall
 
@@ -78,11 +79,19 @@ def rank_niche_mean_ctr(
     niche_groups: dict[str, np.ndarray],
     label_scores: np.ndarray,
     rng: np.random.Generator,
+    other_by_niche: dict[str, np.ndarray] | None = None,
 ) -> np.ndarray:
     """Rank items within the query's niche by label score (desc), then random.
 
     Items outside the niche are appended in random order so the ranking
     always has enough entries to evaluate at larger K values.
+
+    Parameters
+    ----------
+    other_by_niche:
+        Optional precomputed mapping from niche -> indices of all items *not*
+        in that niche.  Pass this to avoid rebuilding the array on every call
+        (see :func:`build_other_by_niche`).
     """
     query_niche = df.iloc[query_idx]["niche"]
 
@@ -94,18 +103,31 @@ def rank_niche_mean_ctr(
     order = np.lexsort((tiebreak, -label_scores[same_niche]))
     ranked_same = same_niche[order]
 
-    other = np.array(
-        [i for niche, idxs in niche_groups.items() if niche != query_niche for i in idxs],
-        dtype=np.int64,
-    )
+    if other_by_niche is not None:
+        other = other_by_niche[query_niche].copy()
+    else:
+        other = np.concatenate(
+            [idxs for niche, idxs in niche_groups.items() if niche != query_niche]
+        ).astype(np.int64)
     rng.shuffle(other)
 
     return np.concatenate([ranked_same, other])
 
 
-# ---------------------------------------------------------------------------
-# Evaluation loop
-# ---------------------------------------------------------------------------
+def build_other_by_niche(niche_groups: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Precompute, for each niche, the array of all indices *outside* that niche.
+
+    Calling this once and passing the result to :func:`rank_niche_mean_ctr`
+    avoids rebuilding the array on every query (O(N²) → O(N)).
+    """
+    return {
+        niche: np.concatenate(
+            [idxs for other_niche, idxs in niche_groups.items() if other_niche != niche]
+        ).astype(np.int64, copy=False)
+        for niche in niche_groups
+    }
+
+
 def evaluate_baseline(
     df: pd.DataFrame,
     ranker,
@@ -193,6 +215,7 @@ def main() -> None:
         for niche in df["niche"].unique()
     }
     label_scores = df["CTR_label"].map(LABEL_ORDER).fillna(0).to_numpy()
+    other_by_niche = build_other_by_niche(niche_groups)
 
     # --- Random baseline ---
     print("Evaluating Random baseline...")
@@ -208,7 +231,7 @@ def main() -> None:
     niche_metrics = evaluate_baseline(
         df,
         ranker=lambda q, rng: rank_niche_mean_ctr(
-            df, q, niche_groups, label_scores, rng,
+            df, q, niche_groups, label_scores, rng, other_by_niche=other_by_niche,
         ),
         ks=args.ks,
         seed=args.seed,

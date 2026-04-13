@@ -48,10 +48,11 @@ python scripts/evaluate.py
 ```
 
 ### 7. Build the thumbnail recommender
-Run these in order after `build_features.py` has produced `features.csv` and
-`train_efficientnet.py` has produced `models/efficientnet_best.pth`
-(`extract_embeddings.py` falls back to ImageNet-pretrained weights if the
-checkpoint is missing):
+Run these in order after `build_features.py` has produced `features.csv`.
+If `train_efficientnet.py` has also produced `models/efficientnet_best.pth`,
+`extract_embeddings.py` will use the fine-tuned checkpoint (recommended for
+better embedding quality); otherwise it falls back to ImageNet-pretrained
+weights, so the pipeline can still run without the checkpoint:
 ```bash
 python scripts/extract_embeddings.py          # 1280-d backbone features per thumbnail
 python scripts/build_index.py                 # cosine-similarity kNN index
