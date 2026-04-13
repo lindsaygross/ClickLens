@@ -255,7 +255,7 @@ def main() -> None:
         filter(lambda p: p.requires_grad, model.parameters()), lr=LR,
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=2, verbose=True,
+        optimizer, mode="min", factor=0.5, patience=2,
     )
     criterion = nn.CrossEntropyLoss()
 
