@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: clicklens-backend
+    runtime: python
+    rootDir: app/backend
+
+    # Install CPU-only PyTorch first (smaller, fits free-tier RAM),
+    # then the rest of the dependencies.
+    buildCommand: >
+      pip install torch torchvision
+      --index-url https://download.pytorch.org/whl/cpu
+      && pip install -r requirements.txt
+
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # Free tier — spins down after 15 min of inactivity.
+    # Upgrade to Starter ($7/mo) to keep it always-on for grading.
+    plan: free
+
+    envVars:
+      # Frontend is deployed at https://clicklens-6x9m.onrender.com
+      - key: CORS_ORIGINS
+        value: https://clicklens-6x9m.onrender.com
+
+      # Set this to a direct-download URL for efficientnet_best.pth
+      # (e.g. HuggingFace Hub raw URL or Google Drive direct link).
+      # Leave blank to run in demo mode.
+      - key: MODEL_URL
+        sync: false

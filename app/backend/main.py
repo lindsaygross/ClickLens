@@ -86,6 +86,19 @@ async def lifespan(app: FastAPI):
     device = _select_device()
     logger.info("Using device: %s", device)
 
+    # Download model from URL if provided and file is missing
+    model_url = os.getenv("MODEL_URL", "").strip()
+    if not MODEL_PATH.exists() and model_url:
+        logger.info("MODEL_URL set — downloading model from %s", model_url)
+        MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            import urllib.request
+            urllib.request.urlretrieve(model_url, str(MODEL_PATH))
+            logger.info("Model downloaded to %s (%d MB)",
+                        MODEL_PATH, MODEL_PATH.stat().st_size // (1024 ** 2))
+        except Exception as exc:
+            logger.error("Failed to download model: %s", exc)
+
     if MODEL_PATH.exists():
         try:
             model = _build_model(device, MODEL_PATH)
@@ -94,12 +107,10 @@ async def lifespan(app: FastAPI):
             logger.error("Failed to load model: %s", exc)
             model = None
     else:
-        logger.warning("Model file not found at %s – starting without model", MODEL_PATH)
+        logger.warning("Model file not found at %s – starting in demo mode", MODEL_PATH)
         model = None
 
     yield  # application is running
-
-    # Cleanup (nothing specific needed)
 
 
 # ---------------------------------------------------------------------------
