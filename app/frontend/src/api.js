@@ -33,3 +33,17 @@ export async function getGradcam(file) {
     throw new Error(parseError(err));
   }
 }
+
+export async function getRecommendations(file, niche = '') {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const { data } = await axios.post(
+      `${API_BASE}/recommend?niche=${encodeURIComponent(niche)}`,
+      formData,
+    );
+    return data;
+  } catch (err) {
+    throw new Error(parseError(err));
+  }
+}
