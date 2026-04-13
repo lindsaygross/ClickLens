@@ -75,11 +75,11 @@ def main() -> None:
     # Encode labels: Low=0, Medium=1, High=2
     le = LabelEncoder()
     le.classes_ = np.array(["Low", "Medium", "High"])
-    df["label_enc"] = le.transform(df["label"])
+    df["label_enc"] = le.transform(df["CTR_label"])
 
     niches = sorted(df["niche"].unique())
     print(f"Niches found: {niches}")
-    print(f"Label distribution:\n{df['label'].value_counts().to_string()}\n")
+    print(f"Label distribution:\n{df['CTR_label'].value_counts().to_string()}\n")
 
     # ------------------------------------------------------------------
     # Results storage

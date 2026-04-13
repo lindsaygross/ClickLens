@@ -30,7 +30,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     df = pd.read_csv(FEATURES_CSV)
     print(f"Loaded {len(df)} samples from {FEATURES_CSV}")
-    print(f"Label distribution:\n{df['label'].value_counts()}\n")
+    print(f"Label distribution:\n{df['CTR_label'].value_counts()}\n")
 
     # ------------------------------------------------------------------
     # 2. Stratified train / test split  (70 / 30)
@@ -39,14 +39,14 @@ def main() -> None:
         df,
         test_size=0.30,
         random_state=RANDOM_STATE,
-        stratify=df["label"],
+        stratify=df["CTR_label"],
     )
     print(f"Train size: {len(train_df)}  |  Test size: {len(test_df)}")
 
     # ------------------------------------------------------------------
     # 3. Find the majority class in the training set
     # ------------------------------------------------------------------
-    class_counts = train_df["label"].value_counts()
+    class_counts = train_df["CTR_label"].value_counts()
     majority_class = class_counts.idxmax()
     class_distribution = class_counts.to_dict()
     print(f"\nTraining class distribution:\n{class_counts}")
@@ -55,7 +55,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 4. Predict majority class for all test samples
     # ------------------------------------------------------------------
-    y_test = test_df["label"].values
+    y_test = test_df["CTR_label"].values
     y_pred = [majority_class] * len(y_test)
 
     accuracy = accuracy_score(y_test, y_pred)

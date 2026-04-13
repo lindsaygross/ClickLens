@@ -370,7 +370,28 @@ def build_features(input_csv: Path, output_csv: Path) -> None:
     features_df = compute_labels(features_df)
 
     # ------------------------------------------------------------------
-    # 5. Save
+    # 5. Recommender-friendly schema: rename + reorder leading columns
+    # ------------------------------------------------------------------
+    features_df = features_df.rename(
+        columns={
+            "view_count": "views",
+            "subscriber_count": "subscribers",
+            "label": "CTR_label",
+        }
+    )
+
+    leading_cols = ["niche", "thumbnail_path", "views", "subscribers", "CTR_label"]
+    missing_leading_cols = [c for c in leading_cols if c not in features_df.columns]
+    if missing_leading_cols:
+        raise ValueError(
+            "Missing required columns after renaming/labeling: "
+            f"{', '.join(missing_leading_cols)}"
+        )
+    remaining_cols = [c for c in features_df.columns if c not in leading_cols]
+    features_df = features_df[leading_cols + remaining_cols]
+
+    # ------------------------------------------------------------------
+    # 6. Save
     # ------------------------------------------------------------------
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     features_df.to_csv(output_csv, index=False)

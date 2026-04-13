@@ -50,7 +50,7 @@ def main() -> None:
 
     le = LabelEncoder()
     le.classes_ = np.array(["Low", "Medium", "High"])  # 0, 1, 2
-    df["label_enc"] = le.transform(df["label"])
+    df["label_enc"] = le.transform(df["CTR_label"])
 
     X = df[FEATURE_COLS].values
     y = df["label_enc"].values

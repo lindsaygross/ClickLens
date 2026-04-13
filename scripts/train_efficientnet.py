@@ -70,7 +70,7 @@ class ThumbnailDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         image = self.transform(image)
 
-        label = LABEL_MAP[row["label"]]
+        label = LABEL_MAP[row["CTR_label"]]
         return image, label
 
 
@@ -210,7 +210,7 @@ def main() -> None:
     # 2. Stratified train / val / test  (70 / 15 / 15) — split by video
     # ------------------------------------------------------------------
     # Create a combined stratification key from label + niche
-    df["_strat_key"] = df["label"] + "_" + df["niche"].astype(str)
+    df["_strat_key"] = df["CTR_label"] + "_" + df["niche"].astype(str)
 
     train_val_df, test_df = train_test_split(
         df,
