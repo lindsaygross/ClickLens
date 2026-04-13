@@ -36,18 +36,13 @@ RANDOM_STATE = 42
 
 # Feature columns (same as train_xgboost.py)
 FEATURE_COLS = [
-    "dominant_color_r",
-    "dominant_color_g",
-    "dominant_color_b",
-    "brightness",
-    "contrast",
-    "saturation",
-    "face_count",
-    "face_area_ratio",
-    "text_present",
-    "text_area_ratio",
-    "edge_density",
-    "color_entropy",
+    "dominant_color_1_r", "dominant_color_1_g", "dominant_color_1_b",
+    "dominant_color_2_r", "dominant_color_2_g", "dominant_color_2_b",
+    "dominant_color_3_r", "dominant_color_3_g", "dominant_color_3_b",
+    "brightness", "contrast", "saturation",
+    "face_count", "face_area_ratio",
+    "text_present", "text_area_ratio",
+    "edge_density", "color_entropy",
 ]
 
 

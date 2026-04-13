@@ -4,12 +4,14 @@ import { predictThumbnails } from '../api';
 const MAX_FILES = 4;
 const MIN_FILES = 2;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const NICHES = ['Gaming', 'Travel', 'Fitness', 'Other'];
 
 export default function UploadZone({ onAnalyze, onLoading, onError }) {
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [validationMsg, setValidationMsg] = useState('');
+  const [niche, setNiche] = useState('Gaming');
   const inputRef = useRef(null);
 
   const addFiles = useCallback((incoming) => {
@@ -101,7 +103,7 @@ export default function UploadZone({ onAnalyze, onLoading, onError }) {
         if (classCompare !== 0) return classCompare;
         return (b.confidence || 0) - (a.confidence || 0);
       });
-      onAnalyze(files, enriched, mock);
+      onAnalyze(files, enriched, mock, niche);
     } catch (err) {
       onError(err.message);
     }
@@ -111,6 +113,23 @@ export default function UploadZone({ onAnalyze, onLoading, onError }) {
 
   return (
     <div className="upload-zone-wrapper">
+      {/* Niche selector */}
+      <div className="niche-selector">
+        <span className="niche-label">Your niche</span>
+        <div className="niche-pills">
+          {NICHES.map(n => (
+            <button
+              key={n}
+              type="button"
+              className={`niche-pill ${niche === n ? 'niche-pill--active' : ''}`}
+              onClick={() => setNiche(n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div
         className={`upload-zone ${dragOver ? 'upload-zone--active' : ''} ${files.length > 0 ? 'upload-zone--has-files' : ''}`}
         onDrop={handleDrop}
