@@ -47,7 +47,26 @@ python scripts/train_efficientnet.py
 python scripts/evaluate.py
 ```
 
-### 7. Run the app
+### 7. Build the thumbnail recommender
+Run these in order after `build_features.py` has produced `features.csv`.
+If `train_efficientnet.py` has also produced `models/efficientnet_best.pth`,
+`extract_embeddings.py` will use the fine-tuned checkpoint (recommended for
+better embedding quality); otherwise it falls back to ImageNet-pretrained
+weights, so the pipeline can still run without the checkpoint:
+```bash
+python scripts/extract_embeddings.py          # 1280-d backbone features per thumbnail
+python scripts/build_index.py                 # cosine-similarity kNN index
+python scripts/train_baseline_recommender.py  # random + niche-mean-CTR baselines
+```
+Artifacts produced:
+- `data/processed/embeddings.npy` — `(N, 1280)` float32 array
+- `data/processed/embeddings_mapping.csv` — `video_id, niche, CTR_label, thumbnail_path`
+- `models/knn_index.pkl` — pickled `{index, mapping, embed_dim}` loaded by the backend
+- `data/outputs/baseline_recommender_metrics.json` — precision@K / recall@K
+
+> `features.csv` schema: `niche, thumbnail_path, views, subscribers, CTR_label`, then the visual feature columns.
+
+### 8. Run the app
 
 **Backend** (port 8000):
 ```bash
@@ -91,6 +110,7 @@ ClickLens/
 
 ## Tech Stack
 - **Models**: EfficientNet-B0 (PyTorch/timm), XGBoost, Majority-class baseline
+- **Recommender**: EfficientNet-B0 embeddings + sklearn NearestNeighbors (cosine)
 - **Backend**: FastAPI + Uvicorn
 - **Frontend**: React + Vite
 - **Explainability**: Grad-CAM

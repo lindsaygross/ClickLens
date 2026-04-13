@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 
+import anthropic as anthropic_sdk
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -37,6 +39,10 @@ CLASS_LABELS = {0: "Low", 1: "Medium", 2: "High"}
 MODEL_PATH        = Path(__file__).resolve().parent.parent.parent / "models" / "efficientnet_best.pth"
 KNN_INDEX_PATH    = Path(__file__).resolve().parent.parent.parent / "models" / "knn_index.pkl"
 EMBEDDINGS_MAP    = Path(__file__).resolve().parent.parent.parent / "data" / "processed" / "embeddings_mapping.csv"
+RERANK_HEAD_PATH  = Path(__file__).resolve().parent.parent.parent / "models" / "rerank_head.pt"
+TRAIN_EMBEDS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "processed" / "embeddings.npy"
+RERANK_HIDDEN     = 128
+RERANK_CANDIDATES = 30
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -55,6 +61,25 @@ device: torch.device = torch.device("cpu")
 model: nn.Module | None = None
 knn_index = None
 embeddings_df: pd.DataFrame | None = None
+rerank_head: nn.Module | None = None
+train_embeds: np.ndarray | None = None
+
+
+# ---------------------------------------------------------------------------
+# Rerank head — small MLP (1280 -> 128 -> 3) trained in scripts/train_rerank_head.py
+# ---------------------------------------------------------------------------
+class RerankHead(nn.Module):
+    def __init__(self, in_dim: int = 1280, hidden: int = RERANK_HIDDEN, dropout: float = 0.2):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden, 3),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
 
 def _select_device() -> torch.device:
@@ -116,19 +141,72 @@ async def lifespan(app: FastAPI):
         logger.warning("Model file not found at %s – starting in demo mode", MODEL_PATH)
         model = None
 
-    # Load kNN similarity index and embeddings mapping (built by Lindsay's pipeline)
+    # Load kNN similarity index + mapping. build_index.py saves a dict artifact
+    # {index, mapping, embed_dim}; we also tolerate an older bare-index format
+    # that kept the mapping in a sibling CSV.
     global knn_index, embeddings_df
-    if KNN_INDEX_PATH.exists() and EMBEDDINGS_MAP.exists():
+    if KNN_INDEX_PATH.exists():
         try:
             with open(KNN_INDEX_PATH, "rb") as f:
-                knn_index = pickle.load(f)
-            embeddings_df = pd.read_csv(EMBEDDINGS_MAP)
+                artifact = pickle.load(f)
+
+            if isinstance(artifact, dict) and "index" in artifact:
+                knn_index = artifact["index"]
+                embeddings_df = artifact.get("mapping")
+                if embeddings_df is None and EMBEDDINGS_MAP.exists():
+                    embeddings_df = pd.read_csv(EMBEDDINGS_MAP)
+            else:
+                # Legacy: pickle is the bare NearestNeighbors object
+                knn_index = artifact
+                embeddings_df = (
+                    pd.read_csv(EMBEDDINGS_MAP) if EMBEDDINGS_MAP.exists() else None
+                )
+
+            if embeddings_df is None:
+                raise RuntimeError("kNN mapping not available (no dict entry and no CSV)")
             logger.info("kNN index loaded (%d embeddings)", len(embeddings_df))
         except Exception as exc:
             logger.error("Failed to load kNN index: %s", exc)
             knn_index, embeddings_df = None, None
     else:
         logger.warning("kNN index not found – recommendations will run in demo mode")
+
+    # ------------------------------------------------------------------
+    # Optional MLP rerank head: reorders kNN candidates by predicted
+    # CTR-class agreement with the query. Falls back silently to pure kNN
+    # ordering when the checkpoint or training embeddings are missing.
+    # ------------------------------------------------------------------
+    global rerank_head, train_embeds
+
+    rerank_url = os.getenv("RERANK_HEAD_URL", "").strip()
+    if not RERANK_HEAD_PATH.exists() and rerank_url:
+        logger.info("RERANK_HEAD_URL set — downloading rerank head from %s", rerank_url)
+        RERANK_HEAD_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            import urllib.request
+            urllib.request.urlretrieve(rerank_url, str(RERANK_HEAD_PATH))
+        except Exception as exc:
+            logger.error("Failed to download rerank head: %s", exc)
+
+    if RERANK_HEAD_PATH.exists() and TRAIN_EMBEDS_PATH.exists():
+        try:
+            head = RerankHead()
+            state = torch.load(str(RERANK_HEAD_PATH), map_location="cpu", weights_only=True)
+            head.load_state_dict(state)
+            head.eval()
+            rerank_head = head
+            train_embeds = np.load(TRAIN_EMBEDS_PATH).astype(np.float32)
+            logger.info(
+                "Rerank head loaded (%d training embeddings available)",
+                len(train_embeds),
+            )
+        except Exception as exc:
+            logger.error("Failed to load rerank head: %s", exc)
+            rerank_head, train_embeds = None, None
+    else:
+        logger.warning(
+            "Rerank head not found – /recommend will fall back to pure kNN ordering"
+        )
 
     yield  # application is running
 
@@ -340,6 +418,40 @@ async def health():
     return {"status": "ok", "model_loaded": model is not None}
 
 
+@app.post("/embed")
+async def embed(file: UploadFile = File(...)):
+    """
+    Return the 1280-d EfficientNet-B0 backbone embedding for a thumbnail.
+    Useful as a standalone feature extractor for downstream retrieval or
+    ranking models.
+    """
+    raw = await file.read()
+    try:
+        img = _load_image(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not open uploaded image")
+
+    if model is None:
+        # Demo mode — return a deterministic pseudo-embedding so the endpoint
+        # is still introspectable without a trained model.
+        rng = np.random.RandomState(abs(hash(file.filename or "demo")) % (2**32))
+        vec = rng.randn(1280).astype(np.float32)
+        return {
+            "embedding": vec.tolist(),
+            "dim": 1280,
+            "filename": file.filename,
+            "mock": True,
+        }
+
+    embedding = _get_embedding(img)
+    return {
+        "embedding": embedding.astype(float).tolist(),
+        "dim": int(embedding.shape[0]),
+        "filename": file.filename,
+        "mock": False,
+    }
+
+
 @app.post("/predict")
 async def predict(files: List[UploadFile] = File(...)):
     if len(files) < 1 or len(files) > 4:
@@ -417,11 +529,42 @@ async def recommend(
         return {"recommendations": _mock_recommend(niche), "mock": True}
 
     embedding = _get_embedding(img)
-    n_neighbors = min(30, len(embeddings_df))
+    n_neighbors = min(RERANK_CANDIDATES, len(embeddings_df))
     distances, indices = knn_index.kneighbors([embedding], n_neighbors=n_neighbors)
 
-    neighbours = embeddings_df.iloc[indices[0]].copy()
+    cand_idx = indices[0]
+    neighbours = embeddings_df.iloc[cand_idx].copy()
     neighbours = neighbours.assign(similarity=(1 - distances[0]).round(4))
+
+    # ------------------------------------------------------------------
+    # Optional rerank: score candidates by P(query's predicted CTR class)
+    # using the MLP head. Fall back to pure similarity ordering otherwise.
+    # ------------------------------------------------------------------
+    reranked = False
+    if rerank_head is not None and train_embeds is not None:
+        try:
+            with torch.no_grad():
+                query_probs = F.softmax(
+                    rerank_head(torch.from_numpy(embedding).float().unsqueeze(0)),
+                    dim=1,
+                ).cpu().numpy()[0]
+                query_class = int(np.argmax(query_probs))
+
+                cand_vecs = torch.from_numpy(train_embeds[cand_idx]).float()
+                cand_probs = F.softmax(rerank_head(cand_vecs), dim=1).cpu().numpy()
+
+            rerank_scores = cand_probs[:, query_class]
+            neighbours = neighbours.assign(
+                rerank_score=rerank_scores.round(4),
+                query_predicted_class=CLASS_LABELS[query_class],
+            )
+            # Sort by rerank score desc; use similarity as a tiebreak
+            neighbours = neighbours.sort_values(
+                by=["rerank_score", "similarity"], ascending=[False, False]
+            )
+            reranked = True
+        except Exception as exc:
+            logger.error("Rerank failed, falling back to kNN order: %s", exc)
 
     # Filter by niche when provided
     if niche and niche.lower() != "other":
@@ -432,13 +575,84 @@ async def recommend(
     high_ctr = neighbours[neighbours["CTR_label"] == "High"]
     top = high_ctr.head(5) if len(high_ctr) >= 2 else neighbours.head(5)
 
-    recommendations = [
-        {
+    recommendations = []
+    for _, row in top.iterrows():
+        rec = {
             "niche":      row["niche"],
             "CTR_label":  row["CTR_label"],
             "similarity": float(row["similarity"]),
             "video_id":   str(row.get("video_id", "")),
         }
-        for _, row in top.iterrows()
-    ]
-    return {"recommendations": recommendations, "mock": False}
+        if reranked:
+            rec["rerank_score"] = float(row["rerank_score"])
+        recommendations.append(rec)
+
+    return {
+        "recommendations": recommendations,
+        "mock": False,
+        "reranked": reranked,
+    }
+
+
+@app.post("/analyze")
+async def analyze(
+    file: UploadFile = File(...),
+    niche: str = Query(default="Gaming"),
+):
+    """
+    Send the thumbnail to Claude and return 3 bullet points of specific,
+    actionable advice to improve click-through rate.
+    Returns {"advice": null, "mock": true} when ANTHROPIC_API_KEY is not set.
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return {"advice": None, "mock": True}
+
+    raw = await file.read()
+    try:
+        img = _load_image(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not open uploaded image")
+
+    # Encode image as base64 JPEG for the Claude vision API
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    prompt = (
+        f"You are a YouTube thumbnail expert. This thumbnail is from the {niche} niche. "
+        "Give exactly 3 bullet points of specific, actionable advice to improve its "
+        "click-through rate. Each bullet must reference something you can actually see "
+        "(or is missing) in the image and suggest a concrete change. "
+        "Topics to consider: text size and readability, color contrast, "
+        "presence of a face or person, emotional appeal, and composition. "
+        "Format: start each bullet with '•'. No intro sentence, no conclusion."
+    )
+
+    try:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": b64,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+        advice = message.content[0].text
+        return {"advice": advice, "mock": False}
+    except Exception as exc:
+        logger.error("Claude /analyze failed: %s", exc)
+        return {"advice": None, "mock": True}

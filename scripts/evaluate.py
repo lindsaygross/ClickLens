@@ -85,7 +85,7 @@ class ThumbnailDataset(Dataset):
             img_path = PROJECT_ROOT / img_path
         image = Image.open(img_path).convert("RGB")
         image = self.transform(image)
-        label = LABEL_MAP[row["label"]]
+        label = LABEL_MAP[row["CTR_label"]]
         return image, label
 
 
@@ -172,10 +172,10 @@ def main() -> None:
     # Label-encode for XGBoost / EfficientNet evaluation
     le = LabelEncoder()
     le.classes_ = np.array(["Low", "Medium", "High"])
-    df["label_enc"] = le.transform(df["label"])
+    df["label_enc"] = le.transform(df["CTR_label"])
 
     # Combined stratification key (label + niche) — matches train_efficientnet
-    df["_strat_key"] = df["label"] + "_" + df["niche"].astype(str)
+    df["_strat_key"] = df["CTR_label"] + "_" + df["niche"].astype(str)
 
     # 70 / 15 / 15 split (same random_state everywhere)
     train_val_df, test_df = train_test_split(
@@ -190,7 +190,7 @@ def main() -> None:
 
     # Also create the 70/30 baseline split
     train_bl, test_bl = train_test_split(
-        df, test_size=0.30, random_state=RANDOM_STATE, stratify=df["label"],
+        df, test_size=0.30, random_state=RANDOM_STATE, stratify=df["CTR_label"],
     )
 
     results = {}
@@ -204,7 +204,7 @@ def main() -> None:
     with open(BASELINE_PATH, "rb") as f:
         baseline = pickle.load(f)
     majority_class = baseline["majority_class"]
-    y_true_bl = test_bl["label"].values
+    y_true_bl = test_bl["CTR_label"].values
     y_pred_bl = [majority_class] * len(y_true_bl)
     metrics_bl = compute_metrics(y_true_bl, y_pred_bl)
     results["Baseline"] = metrics_bl
