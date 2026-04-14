@@ -47,3 +47,17 @@ export async function getRecommendations(file, niche = '') {
     throw new Error(parseError(err));
   }
 }
+
+export async function analyzeThumb(file, niche = 'Gaming') {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const { data } = await axios.post(
+      `${API_BASE}/analyze?niche=${encodeURIComponent(niche)}`,
+      formData,
+    );
+    return data;
+  } catch (err) {
+    throw new Error(parseError(err));
+  }
+}

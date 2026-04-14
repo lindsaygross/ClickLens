@@ -3,6 +3,7 @@ import UploadZone from './components/UploadZone';
 import Results from './components/Results';
 import InsightsPanel from './components/InsightsPanel';
 import Recommendations from './components/Recommendations';
+import ThumbnailAdvice from './components/ThumbnailAdvice';
 
 function App() {
   const [view, setView] = useState('upload');
@@ -135,6 +136,7 @@ function App() {
             <Results results={results} files={files} />
             <InsightsPanel results={results} />
             <Recommendations bestFile={results[0]?.file} niche={niche} />
+            <ThumbnailAdvice bestFile={results[0]?.file} niche={niche} />
             <div className="results-footer">
               <button className="btn-primary" onClick={handleReset}>
                 + Compare More

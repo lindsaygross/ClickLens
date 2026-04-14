@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 
+import anthropic as anthropic_sdk
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -590,3 +592,67 @@ async def recommend(
         "mock": False,
         "reranked": reranked,
     }
+
+
+@app.post("/analyze")
+async def analyze(
+    file: UploadFile = File(...),
+    niche: str = Query(default="Gaming"),
+):
+    """
+    Send the thumbnail to Claude and return 3 bullet points of specific,
+    actionable advice to improve click-through rate.
+    Returns {"advice": null, "mock": true} when ANTHROPIC_API_KEY is not set.
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return {"advice": None, "mock": True}
+
+    raw = await file.read()
+    try:
+        img = _load_image(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not open uploaded image")
+
+    # Encode image as base64 JPEG for the Claude vision API
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    prompt = (
+        f"You are a YouTube thumbnail expert. This thumbnail is from the {niche} niche. "
+        "Give exactly 3 bullet points of specific, actionable advice to improve its "
+        "click-through rate. Each bullet must reference something you can actually see "
+        "(or is missing) in the image and suggest a concrete change. "
+        "Topics to consider: text size and readability, color contrast, "
+        "presence of a face or person, emotional appeal, and composition. "
+        "Format: start each bullet with '•'. No intro sentence, no conclusion."
+    )
+
+    try:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": b64,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+        advice = message.content[0].text
+        return {"advice": advice, "mock": False}
+    except Exception as exc:
+        logger.error("Claude /analyze failed: %s", exc)
+        return {"advice": None, "mock": True}
