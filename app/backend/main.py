@@ -365,6 +365,9 @@ def _gradcam(img: Image.Image) -> dict:
         model.zero_grad()
         logits[0, pred_idx].backward()
 
+        if not gradients or gradients[0] is None:
+            raise RuntimeError("Grad-CAM backward hook captured no gradients")
+
         # Compute Grad-CAM weights
         grads = gradients[0].squeeze(0)   # (C, H, W)
         acts = activations[0].squeeze(0)  # (C, H, W)
@@ -495,7 +498,6 @@ async def gradcam(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Could not open uploaded image")
 
     if model is None:
-        # Demo mode: return a smooth random heatmap so the UI shows something useful
         b64 = _mock_gradcam(img)
         return {
             "heatmap": b64,
@@ -505,8 +507,20 @@ async def gradcam(file: UploadFile = File(...)):
             "mock": True,
         }
 
-    result = _gradcam(img)
-    return result
+    try:
+        result = _gradcam(img)
+        return result
+    except Exception as exc:
+        logger.error("Grad-CAM failed, falling back to mock heatmap: %s", exc)
+        b64 = _mock_gradcam(img)
+        pred = _predict(img)
+        return {
+            "heatmap": b64,
+            "predicted_class": pred["predicted_class"],
+            "confidence": pred["confidence"],
+            "scores": pred["scores"],
+            "mock": True,
+        }
 
 
 @app.post("/recommend")
